@@ -1,3 +1,30 @@
 dependencies:
   idf:
     version: ">=4.1.0"
+  sepfy/srtp: ^2.3.0
+  78/esp-opus: ^1.0.4
+
+  espressif/gmf_core:
+    path: ./gmf_core
+    git: https://github.com/espressif2022/esp-gmf.git
+    version: "main"
+
+  espressif/gmf_io:
+    path: ./gmf_elements/gmf_io
+    git: https://github.com/espressif2022/esp-gmf.git
+    version: "main"
+
+  espressif/gmf_misc:
+    path: ./gmf_elements/gmf_misc
+    git: https://github.com/espressif2022/esp-gmf.git
+    version: "main"
+
+  espressif/gmf_audio:
+    path: ./gmf_elements/gmf_audio
+    git: https://github.com/espressif2022/esp-gmf.git
+    version: "main"
+
+  espressif/esp_audio_simple_player:
+    path: ./examples/esp_audio_simple_player
+    git: https://github.com/espressif2022/esp-gmf.git
+    version: "main"
