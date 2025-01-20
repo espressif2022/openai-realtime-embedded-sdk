@@ -7,6 +7,9 @@ idf_component_register(
   REQUIRES mbedtls srtp json esp_netif
 )
 
+message(STATUS "CMAKE_CURRENT_SOURCE_DIR: ${CMAKE_CURRENT_SOURCE_DIR}")
+message(STATUS "PEER_PROJECT_PATH: ${PEER_PROJECT_PATH}")
+
 # Disable KeepAlives
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/libpeer/src/config.h INPUT_CONTENT)
 string(REPLACE "#define KEEPALIVE_CONNCHECK 10000" "#define KEEPALIVE_CONNCHECK 0" MODIFIED_CONTENT ${INPUT_CONTENT})
