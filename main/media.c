@@ -70,8 +70,10 @@ static const char *TAG = "DISP";
 es8311_handle_t es8311_handle = NULL;
 #elif CONFIG_OPENAI_BOARD_ESP_BOX
 
-#define BUFFER_SAMPLES      (320 * 2)
-#define SAMPLE_RATE         (8000 * 2)
+// #define BUFFER_SAMPLES      (320 * 2)
+// #define SAMPLE_RATE         (8000 * 2)
+#define BUFFER_SAMPLES      (320 * 1)
+#define SAMPLE_RATE         (8000 * 1)
 
 #define DEFAULT_VOLUME  (90)
 
@@ -94,7 +96,7 @@ void oai_completed_event()
     size_t size = mmap_assets_get_size(asset_lottie, MMAP_WAV_OPENAI_WELCOME_WAV);
 
 #if CONFIG_OPENAI_BOARD_ESP_BOX
-    player_out((void*)data + 44, size);
+    // player_out((void*)data + 44, size);
 #else
     size_t bytes_written = 0;
     // i2s_write(I2S_DATA_OUT_PORT, (void*)data + 44, size, &bytes_written, portMAX_DELAY);
@@ -348,7 +350,7 @@ void oai_send_audio(PeerConnection *peer_connection)
     int encoded_size =
         opus_encode(opus_encoder, encoder_input_buffer, BUFFER_SAMPLES / 2,
                     encoder_output_buffer, OPUS_OUT_BUFFER_SIZE);
-    ESP_LOGI(TAG, "encoded_bytes out:%d -> %d", BUFFER_SAMPLES, (int)encoded_size);
+    // ESP_LOGI(TAG, "encoded_bytes out:%d -> %d", BUFFER_SAMPLES, (int)encoded_size);
     peer_connection_send_audio(peer_connection, (const uint8_t*)encoder_output_buffer, encoded_size);
     // peer_connection_send_audio(peer_connection, (const uint8_t*)encoder_input_buffer, encoded_size);
 #endif

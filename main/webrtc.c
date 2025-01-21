@@ -26,7 +26,7 @@ void oai_send_audio_task(void *user_data)
 
     while (1) {
         oai_send_audio(peer_connection);
-        vTaskDelay(pdMS_TO_TICKS(TICK_INTERVAL * 2));
+        vTaskDelay(pdMS_TO_TICKS(TICK_INTERVAL));
     }
 }
 #endif
@@ -58,8 +58,8 @@ static void peer_loop_task(void *arg)
 {
     while (1) {
         peer_connection_loop(peer_connection);
-        // vTaskDelay(pdMS_TO_TICKS(TICK_INTERVAL));
-        vTaskDelay(pdMS_TO_TICKS(2));
+        vTaskDelay(pdMS_TO_TICKS(TICK_INTERVAL));
+        // vTaskDelay(pdMS_TO_TICKS(2));
     }
 }
 
@@ -98,5 +98,6 @@ void oai_webrtc()
     peer_connection_onicecandidate(peer_connection, oai_on_icecandidate_task);
     peer_connection_create_offer(peer_connection);
 
-    xTaskCreatePinnedToCore(&peer_loop_task, "peer connect task", 16 * 1024, NULL, 6, NULL, 0);
+    // xTaskCreatePinnedToCore(&peer_loop_task, "peer connect task", 16 * 1024, NULL, 6, NULL, 1);
+    xTaskCreatePinnedToCore(&peer_loop_task, "peer connect task", 16 * 1024, NULL, 1, NULL, 1);
 }

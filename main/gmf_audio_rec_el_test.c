@@ -215,7 +215,7 @@ static void create_record_pipeline(esp_gmf_pipeline_handle_t *pipe_rec, esp_gmf_
     esp_gmf_audio_helper_get_audio_type_by_uri(uri_rec, &audio_type);
 
     esp_gmf_info_sound_t info = {
-        .sample_rates = 16000,
+        .sample_rates = 8000,
         .channels = 1,
         .bits = 16,
     };
@@ -240,14 +240,14 @@ void start_gmf_task(void)
 
     esp_gmf_setup_periph_i2c(0);
     esp_gmf_setup_periph_aud_info aud_info_play = {
-        .sample_rate = 16000,
+        .sample_rate = 8000,
         .channel = 2,
         .bits_per_sample = 16,
         .port_num = 0,
     };
 
     esp_gmf_setup_periph_aud_info aud_info_record = {
-        .sample_rate = 16000,
+        .sample_rate = 8000,
         .channel = 1,
         .bits_per_sample = 16,
         .port_num = 0,
