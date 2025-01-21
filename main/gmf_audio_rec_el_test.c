@@ -52,6 +52,7 @@
 #endif /* MEDIA_LIB_MEM_TEST */
 
 #include "esp_opus_enc.h"
+#include "main.h"
 
 static const char *TAG = "gmf";
 
@@ -152,6 +153,11 @@ void player_out(uint8_t *data, int data_size)
     esp_codec_dev_write(play_dev, data, data_size);
 }
 
+int record_in(uint8_t *data, int data_size)
+{
+    return esp_codec_dev_read(record_dev, data, data_size);
+}
+
 static int player_out_data_cb(uint8_t *data, int data_size, void *ctx)
 {
     esp_codec_dev_handle_t dev = (esp_codec_dev_handle_t)ctx;
@@ -250,7 +256,7 @@ void start_gmf_task(void)
     esp_gmf_setup_periph_codec(&aud_info_play, &aud_info_record, &play_dev, &record_dev);
     assert(play_dev && record_dev);
 
-    esp_codec_dev_set_out_vol(play_dev, 80.0);
+    esp_codec_dev_set_out_vol(play_dev, 70.0);
 
     /**
      * Create player pipeline
@@ -288,13 +294,16 @@ void start_gmf_task(void)
     pool_register_codec_dev_io(pool, play_dev, record_dev);
     ESP_GMF_POOL_SHOW_ITEMS(pool);
 
+#if (1 ==USE_GMF)
     create_record_pipeline(&pipe_rec, pool);
-
+#endif
     /**
      * Run player
      */
     const char *uri = "raw://sdcard/test.opus";
     err = esp_audio_simple_player_run(handle, uri);
 
+#if (1 ==USE_GMF)
     esp_gmf_pipeline_run(pipe_rec);
+#endif
 }

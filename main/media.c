@@ -78,6 +78,7 @@ es8311_handle_t es8311_handle = NULL;
 extern mmap_assets_handle_t asset_lottie;
 
 extern void player_out(uint8_t *data, int data_size);
+extern int record_in(uint8_t *data, int data_size);
 
 #endif
 
@@ -257,67 +258,53 @@ void oai_init_audio_decoder()
     output_buffer = (opus_int16 *)malloc(BUFFER_SAMPLES * sizeof(opus_int16));
 }
 
-// typedef struct {
-//     int64_t start;
-//     int64_t acc;
-//     char str1[10];
-//     char str2[10];
-// } PerfCounter;
+#include "esp_timer.h"
 
-// static PerfCounter perf_counters;
+typedef struct {
+    int64_t start;
+    int64_t acc;
+    char str1[10];
+    char str2[10];
+} PerfCounter;
 
-// static void perfmon_start(const char* fmt1, const char* fmt2, ...)
-// {
-//     va_list args;
-//     va_start(args, fmt2);
-//     vsnprintf(perf_counters.str1, sizeof(perf_counters.str1), fmt1, args);
-//     vsnprintf(perf_counters.str2, sizeof(perf_counters.str2), fmt2, args);
-//     va_end(args);
+static PerfCounter perf_counters;
 
-//     perf_counters.start = esp_timer_get_time();
-// }
+static void perfmon_start(const char* fmt1, const char* fmt2, ...)
+{
+    va_list args;
+    va_start(args, fmt2);
+    vsnprintf(perf_counters.str1, sizeof(perf_counters.str1), fmt1, args);
+    vsnprintf(perf_counters.str2, sizeof(perf_counters.str2), fmt2, args);
+    va_end(args);
 
-// static void perfmon_end(int count)
-// {
-//     perf_counters.acc = esp_timer_get_time() - perf_counters.start;
-//     printf("Perf ctr, [%-15s][%-15s]: %.2f ms\n",
-//            perf_counters.str1, perf_counters.str2, ((float)perf_counters.acc / count) / 1000);
-// }
+    perf_counters.start = esp_timer_get_time();
+}
+
+static void perfmon_end(int count)
+{
+    perf_counters.acc = esp_timer_get_time() - perf_counters.start;
+    printf("Perf ctr, [%-15s][%-15s]: %.2f ms\n",
+           perf_counters.str1, perf_counters.str2, ((float)perf_counters.acc / count) / 1000);
+}
 
 void oai_audio_decode(uint8_t *data, size_t size, void* userdata)
 {
-    // perfmon_end(1);
-    // perfmon_start("agent", "tm");
+    if(size != 26){
+        perfmon_end(1);
+        perfmon_start("agent", "send_opus");
+        // ESP_LOGI(TAG, "agent:%d", size);
+    } else {
+        // ESP_LOGW(TAG, "agent:%d", size);
+    }
 
-    ESP_LOGI(TAG, "send_opus_data:%d, %d", size, BUFFER_SAMPLES);
     int decoded_size = 0;
-    // uint16_t len = size;
-    // tcp_server_send(&len, 2);
-    // tcp_server_send(data, size);
-    // if(size != 26){
-    //     for(int i = 0; i< size; i++){
-    //         printf("%02x", data[i]);
-    //     }
-    //     printf("\n");
-    // }
-#if 1
+#if USE_GMF
     player_send_opus_data(data, size);
 #else
     decoded_size = opus_decode(opus_decoder, data, size, output_buffer, BUFFER_SAMPLES, 0);
     player_out((uint8_t *)output_buffer, BUFFER_SAMPLES * sizeof(opus_int16));
-    ESP_LOGI(TAG, "opus_decode:%d, %d(%d)", size, decoded_size, BUFFER_SAMPLES * sizeof(opus_int16));
+    // ESP_LOGI(TAG, "opus_decode:%d, %d(%d)", size, decoded_size, BUFFER_SAMPLES * sizeof(opus_int16));
 #endif
-    if (decoded_size > 0) {
-#if CONFIG_OPENAI_BOARD_ESP_BOX
-
-#else
-        // size_t bytes_written = 0;
-        // i2s_write(I2S_DATA_OUT_PORT, output_buffer, BUFFER_SAMPLES * sizeof(opus_int16),
-        //           &bytes_written, portMAX_DELAY);
-
-#endif
-        // tcp_server_send((uint8_t *)output_buffer, BUFFER_SAMPLES * sizeof(opus_int16));
-    }
 }
 
 OpusEncoder *opus_encoder = NULL;
@@ -349,25 +336,27 @@ void oai_init_audio_encoder()
 
 void oai_send_audio(PeerConnection *peer_connection)
 {
-    // ESP_LOGI(TAG, "playback");
-    // oai_completed_event();
-    // return;
 
 #if CONFIG_OPENAI_BOARD_ESP_BOX
-    // app_aec_read(encoder_input_buffer, BUFFER_SAMPLES);
-    // esp_codec_dev_read(mic_codec_dev, encoder_input_buffer, BUFFER_SAMPLES);
+
+#if USE_GMF
     int encoded_size = record_read_opus_data((uint8_t *)encoder_input_buffer, BUFFER_SAMPLES);
+    ESP_LOGI(TAG, "encoded_size:%d, %d", encoded_size, BUFFER_SAMPLES);
+    peer_connection_send_audio(peer_connection, (const uint8_t*)oai_encoder_input_buffer, encoded_size);
+#else
+    record_in((uint8_t *)encoder_input_buffer, BUFFER_SAMPLES);
+    int encoded_size =
+        opus_encode(opus_encoder, encoder_input_buffer, BUFFER_SAMPLES / 2,
+                    encoder_output_buffer, OPUS_OUT_BUFFER_SIZE);
+    ESP_LOGI(TAG, "encoded_bytes out:%d -> %d", BUFFER_SAMPLES, (int)encoded_size);
+    peer_connection_send_audio(peer_connection, (const uint8_t*)encoder_output_buffer, encoded_size);
+    // peer_connection_send_audio(peer_connection, (const uint8_t*)encoder_input_buffer, encoded_size);
+#endif
+
 #else
     size_t bytes_read = 0;
     i2s_read(I2S_DATA_IN_PORT, encoder_input_buffer, BUFFER_SAMPLES, &bytes_read,
              portMAX_DELAY);
 #endif
     // tcp_server_send((uint8_t *)encoder_input_buffer, BUFFER_SAMPLES);
-
-    // int encoded_size =
-    //     opus_encode(opus_encoder, encoder_input_buffer, BUFFER_SAMPLES / 2,
-    //                 encoder_output_buffer, OPUS_OUT_BUFFER_SIZE);
-    // ESP_LOGW(TAG, "encoded_size:%d", (int)encoded_size);
-
-    peer_connection_send_audio(peer_connection, (const uint8_t*)encoder_input_buffer, encoded_size);
 }

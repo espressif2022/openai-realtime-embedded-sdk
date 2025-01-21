@@ -10,6 +10,7 @@
 
 
 #define ENABLE_AEC                      1
+#define USE_GMF                         0
 
 void oai_wifi(void);
 void oai_init_audio_capture(void);

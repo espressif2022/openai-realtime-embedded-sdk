@@ -98,5 +98,5 @@ void oai_webrtc()
     peer_connection_onicecandidate(peer_connection, oai_on_icecandidate_task);
     peer_connection_create_offer(peer_connection);
 
-    xTaskCreatePinnedToCore(&peer_loop_task, "peer connect task", 16 * 1024, NULL, 6, NULL, 1);
+    xTaskCreatePinnedToCore(&peer_loop_task, "peer connect task", 16 * 1024, NULL, 6, NULL, 0);
 }
