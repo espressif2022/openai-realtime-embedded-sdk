@@ -1,7 +1,6 @@
+#if (CONFIG_OPENAI_WITH_GMF == 0)
 #include <driver/i2s.h>
 #include <opus.h>
-
-#include "main.h"
 
 #define OPUS_OUT_BUFFER_SIZE 1276  // 1276 bytes is recommended by opus_encode
 #define SAMPLE_RATE 8000
@@ -142,3 +141,4 @@ void oai_send_audio(PeerConnection *peer_connection) {
   peer_connection_send_audio(peer_connection, encoder_output_buffer,
                              encoded_size);
 }
+#endif
