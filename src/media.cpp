@@ -2,6 +2,8 @@
 #include <driver/i2s.h>
 #include <opus.h>
 
+#include "main.h"
+
 #define OPUS_OUT_BUFFER_SIZE 1276  // 1276 bytes is recommended by opus_encode
 #define SAMPLE_RATE 8000
 #define BUFFER_SAMPLES 320
