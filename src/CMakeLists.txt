@@ -7,7 +7,7 @@ if(IDF_TARGET STREQUAL linux)
 else()
 	idf_component_register(
 		SRCS ${COMMON_SRC} "wifi.cpp" "media.cpp" "media_gmf.c" "message.c"
-		REQUIRES driver esp_wifi nvs_flash peer esp_psram esp_timer esp_http_client)
+		REQUIRES driver esp_wifi nvs_flash peer esp_psram esp_timer esp_http_client ai_audio espressif__system_common)
 endif()
 
 idf_component_get_property(lib peer COMPONENT_LIB)
@@ -15,6 +15,9 @@ target_compile_options(${lib} PRIVATE -Wno-error=restrict)
 target_compile_options(${lib} PRIVATE -Wno-error=stringop-truncation)
 
 idf_component_get_property(lib sepfy__srtp COMPONENT_LIB)
+target_compile_options(${lib} PRIVATE -Wno-error=incompatible-pointer-types)
+
+idf_component_get_property(lib ai_audio COMPONENT_LIB)
 target_compile_options(${lib} PRIVATE -Wno-error=incompatible-pointer-types)
 
 set(TARGET_COMPONENT "")

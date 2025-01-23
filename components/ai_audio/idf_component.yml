@@ -1,0 +1,6 @@
+dependencies:
+  espressif/esp-sr: "1.9.0"
+  # espressif/gmf_core:
+  #   path: ../../gmf_core
+  # espressif/gmf_audio:
+  #   path: ../../gmf_elements/gmf_audio

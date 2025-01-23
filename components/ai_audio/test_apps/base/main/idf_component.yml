@@ -1,0 +1,7 @@
+dependencies:
+  espressif/esp-sr: "1.9.0"
+  espressif/esp_codec_dev:
+    require: "public"
+    version: "*"
+  espressif/ai_audio:
+    path: ../../../../ai_audio

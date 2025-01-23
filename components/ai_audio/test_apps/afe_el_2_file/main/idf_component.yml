@@ -1,0 +1,8 @@
+dependencies:
+  espressif/ai_audio:
+    path: ../../../../ai_audio
+  espressif/esp_codec_dev:
+    require: "public"
+    version: "*"
+  # espressif/gmf_io:
+  #   path: ../../../../../gmf_elements/gmf_io

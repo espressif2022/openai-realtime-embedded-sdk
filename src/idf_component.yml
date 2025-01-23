@@ -1,6 +1,8 @@
 dependencies:
   idf:
     version: ">=4.1.0"
+
+  espressif/esp-sr: "1.9.0"
   
   sepfy/srtp:
     version: "^2.3.0"
@@ -45,9 +47,9 @@ dependencies:
     rules:
     - if: "${BUILD_BOARD} == esp32s3_korvo_2"
 
-  espressif/system_common:
-    path: ./examples/system_common
-    git: https://github.com/espressif2022/esp-gmf.git
-    version: "main"
-    rules:
-    - if: "${BUILD_BOARD} == esp32s3_korvo_2"
+  # espressif/system_common:
+  #   path: ./examples/system_common
+  #   git: https://github.com/espressif2022/esp-gmf.git
+  #   version: "main"
+  #   rules:
+  #   - if: "${BUILD_BOARD} == esp32s3_korvo_2"

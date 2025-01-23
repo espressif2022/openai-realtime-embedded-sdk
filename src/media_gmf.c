@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "esp_gmf_err.h"
 #include "driver/sdmmc_host.h"
 #include "esp_audio_simple_player.h"
 #include "esp_audio_simple_player_advance.h"
@@ -31,12 +32,16 @@
 #endif /* MEDIA_LIB_MEM_TEST */
 
 #include "esp_opus_enc.h"
+#include "afe_proc.h"
+#include "esp_gmf_ch_picker.h"
+#include "esp_gmf_afe_proc.h"
+#include "esp_gmf_aec.h"
 #include "main.h"
 
 static const char *TAG = "gmf";
 
-#define BUFFER_SAMPLES (320 * 1)
-#define SAMPLE_RATE (8000 * 1)
+#define BUFFER_SAMPLES (320 * 2)
+#define SAMPLE_RATE (8000 * 2)
 
 static esp_gmf_fifo_handle_t oai_plr_dec_fifo = NULL;
 static esp_gmf_fifo_handle_t oai_rec_enc_fifo = NULL;
@@ -45,6 +50,9 @@ static esp_codec_dev_handle_t oai_plr_handle = NULL;
 static esp_codec_dev_handle_t oai_rec_handle = NULL;
 
 static int16_t *oai_encoder_input_buffer = NULL;
+
+static afe_proc_handle_t afe_handle = NULL;
+
 
 static esp_gmf_err_t oai_record_event_callback(esp_gmf_event_pkt_t *event,
                                                void *ctx) {
@@ -112,6 +120,7 @@ static int oai_encoder_release_write(void *handle,
                                      int block_ticks) {
   int ret = 0;
   if (blk->valid_size) {
+    ESP_LOGI(TAG, "oai_encoder_release_write, size:%d", blk->valid_size);
     oai_record_write_enc(blk->buf, blk->valid_size);
     ret = blk->valid_size;
   }
@@ -152,8 +161,10 @@ static esp_gmf_err_t oai_record_pipeline_create(
   esp_gmf_err_t ret = ESP_GMF_ERR_OK;
   esp_gmf_pipeline_handle_t pipe = NULL;
 
-  ret = esp_gmf_pool_new_pipeline(pool, "codec_dev_rx",
-                                  (const char *[]){"encoder"}, 1, NULL, &pipe);
+#if 1
+    const char *name[] = { "ch_picker", "afe_proc", "encoder"};
+
+  ret = esp_gmf_pool_new_pipeline(pool, "codec_dev_rx",name, sizeof(name) / sizeof(char *), NULL, &pipe);
   ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
                        "esp_gmf_pool_new_pipeline failed(0x%x)", ret);
 
@@ -161,11 +172,28 @@ static esp_gmf_err_t oai_record_pipeline_create(
   out_port = (esp_gmf_port_handle_t)NEW_ESP_GMF_PORT_OUT_BYTE(
       (void *)oai_encoder_acquire_write, (void *)oai_encoder_release_write,
       NULL, &out_port, 0, ESP_GMF_MAX_DELAY);
-  ret = esp_gmf_pipeline_reg_el_port(pipe, "encoder", ESP_GMF_IO_DIR_WRITER,
-                                     out_port);
+  ret = esp_gmf_pipeline_reg_el_port(pipe, "encoder", ESP_GMF_IO_DIR_WRITER, out_port);
   ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
                        "esp_gmf_pipeline_reg_el_port failed(0x%x)", ret);
+#else
+    sdmmc_card_t *card = NULL;
+    esp_gmf_setup_periph_sdmmc((void **)&card);
 
+    const char *name[] = { "ch_picker", "afe_proc"};
+
+  ret = esp_gmf_pool_new_pipeline(pool, "codec_dev_rx",name, sizeof(name) / sizeof(char *), "file", &pipe);
+  ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
+                       "esp_gmf_pool_new_pipeline failed(0x%x)", ret);
+
+    esp_gmf_info_sound_t info = {
+        .sample_rates = 16000,
+        .channels = 4,
+        .bits = 16,
+    };
+    esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info, sizeof(info));
+    esp_gmf_pipeline_set_out_uri(pipe, "/sdcard/gmf.pcm");
+
+#endif
   esp_gmf_task_cfg_t cfg_rec = DEFAULT_ESP_GMF_TASK_CONFIG();
   cfg_rec.thread.stack = 30 * 1024;
   cfg_rec.thread.core = 1;
@@ -189,7 +217,7 @@ static esp_gmf_err_t oai_record_pipeline_create(
 
   esp_gmf_info_sound_t info = {
       .sample_rates = SAMPLE_RATE,
-      .channels = 1,
+      .channels = 4,
       .bits = 16,
   };
   esp_gmf_audio_helper_reconfig_enc_by_type(
@@ -234,8 +262,8 @@ void oai_init_audio_capture(void) {
 
   esp_gmf_setup_periph_aud_info audio_record_config = {
       .sample_rate = SAMPLE_RATE,
-      .channel = 1,
-      .bits_per_sample = 16,
+      .channel = 2,
+      .bits_per_sample = 32,
       .port_num = 0,
   };
 
@@ -244,6 +272,16 @@ void oai_init_audio_capture(void) {
   assert(oai_plr_handle && oai_rec_handle);
 
   esp_codec_dev_set_out_vol(oai_plr_handle, 60.0);
+
+    afe_config_t afe_cfg = AFE_CONFIG_DEFAULT();
+    afe_cfg.wakenet_init = false;
+    afe_cfg.vad_init = false;
+    afe_cfg.aec_init = true;
+    afe_cfg.pcm_config.mic_num = 1;
+    afe_cfg.pcm_config.ref_num = 1;
+    afe_cfg.pcm_config.total_ch_num = 2;
+    afe_proc_cfg_t user_cfg = AFE_PROC_CFG_DEFAULT(&afe_cfg, NULL, NULL, NULL);
+    afe_proc_create(&user_cfg, &afe_handle);
 }
 
 void oai_init_audio_decoder(void) {
@@ -304,9 +342,34 @@ void oai_init_audio_encoder(void) {
                        "esp_gmf_pool_init failed (0x%x)", err);
 
   pool_register_audio_codecs(pool_handle);
-  pool_register_audio_effects(pool_handle);
+//   pool_register_audio_effects(pool_handle);
   pool_register_io(pool_handle);
   pool_register_codec_dev_io(pool_handle, oai_plr_handle, oai_rec_handle);
+
+    esp_gmf_element_handle_t picker_handle = NULL;
+    ch_picker_cfg_t chp_cfg = {
+        // .ch_choice = "1, 3, 0",
+        .ch_choice = "1, 0",
+    };
+    esp_gmf_ch_picker_init(&chp_cfg, &picker_handle);
+    esp_gmf_pool_register_element(pool_handle, picker_handle, NULL);
+
+    esp_gmf_element_handle_t gmf_afe_proc_handle = NULL;
+    esp_gmf_afe_proc_cfg_t gmf_afe_proc_cfg = {
+        .afe = afe_handle
+    };
+    esp_gmf_afe_proc_init(&gmf_afe_proc_cfg, &gmf_afe_proc_handle);
+    esp_gmf_pool_register_element(pool_handle, gmf_afe_proc_handle, NULL);
+
+    esp_gmf_element_handle_t gmf_aec_handle = NULL;
+    esp_gmf_aec_cfg_t gmf_aec_cfg = {
+        .frame_len = 16,
+        .nch = 1,
+        .mode = 3
+    };
+    esp_gmf_aec_init(&gmf_aec_cfg, &gmf_aec_handle);
+    esp_gmf_pool_register_element(pool_handle, gmf_aec_handle, NULL);
+
   ESP_GMF_POOL_SHOW_ITEMS(pool_handle);
 
   err = oai_record_pipeline_create(&record_pipeline, pool_handle);

@@ -1,0 +1,3 @@
+dependencies:
+  espressif/ai_audio:
+    path: ../../../../ai_audio
