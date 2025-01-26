@@ -1,4 +1,5 @@
-#if (CONFIG_OPENAI_WITH_GMF == 1)
+// #if (CONFIG_OPENAI_WITH_GMF == 1)
+#if (1)
 
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +37,9 @@
 #include "esp_gmf_ch_picker.h"
 #include "esp_gmf_afe_proc.h"
 #include "esp_gmf_aec.h"
+
+#include "bsp/esp-bsp.h"
+
 #include "main.h"
 
 static const char *TAG = "gmf";
@@ -133,6 +137,7 @@ static int oai_player_read_dec(uint8_t *data, int data_size, void *ctx) {
   int ret = esp_gmf_fifo_acquire_read(oai_plr_dec_fifo, &blk, data_size,
                                       portMAX_DELAY);
   memcpy(data, blk.buf, data_size);
+  // ESP_LOGI(TAG, "oai_player_read_dec, size:%d", data_size);
   esp_gmf_fifo_release_read(oai_plr_dec_fifo, &blk, 0);
 
   return ret;
@@ -146,6 +151,9 @@ void oai_player_write_dec(uint8_t *data, int len) {
   blk.valid_size = len;
   if (len == 0) {
     blk.is_last = true;
+  }
+  if(blk.valid_size != 26){
+    ESP_LOGI(TAG, "oai_player_write_dec, size:%d", blk.valid_size);
   }
   esp_gmf_fifo_release_write(oai_plr_dec_fifo, &blk, portMAX_DELAY);
 }
@@ -175,6 +183,7 @@ static esp_gmf_err_t oai_record_pipeline_create(
   ret = esp_gmf_pipeline_reg_el_port(pipe, "encoder", ESP_GMF_IO_DIR_WRITER, out_port);
   ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
                        "esp_gmf_pipeline_reg_el_port failed(0x%x)", ret);
+                       
 #else
     sdmmc_card_t *card = NULL;
     esp_gmf_setup_periph_sdmmc((void **)&card);
@@ -215,13 +224,13 @@ static esp_gmf_err_t oai_record_pipeline_create(
   esp_gmf_audio_helper_get_audio_type_by_uri("/sdcard/openAI.opus",
                                              &audio_type);
 
-  esp_gmf_info_sound_t info = {
+  esp_gmf_info_sound_t info1 = {
       .sample_rates = SAMPLE_RATE,
-      .channels = 4,
+      .channels = 1,
       .bits = 16,
   };
   esp_gmf_audio_helper_reconfig_enc_by_type(
-      audio_type, &info, (esp_audio_enc_config_t *)OBJ_GET_CFG(enc_handle));
+      audio_type, &info1, (esp_audio_enc_config_t *)OBJ_GET_CFG(enc_handle));
 
   esp_audio_enc_config_t *cfg =
       (esp_audio_enc_config_t *)OBJ_GET_CFG(enc_handle);
@@ -229,8 +238,13 @@ static esp_gmf_err_t oai_record_pipeline_create(
   opus_enc_cfg->bitrate = 10000 * 3;
   opus_enc_cfg->enable_vbr = true;
 
-  ret = esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info,
-                                     sizeof(info));
+  esp_gmf_info_sound_t info2 = {
+      .sample_rates = SAMPLE_RATE,
+      .channels = 4,
+      .bits = 16,
+  };
+  ret = esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info2,
+                                     sizeof(info2));
   ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
                        "esp_gmf_pipeline_report_info failed(0x%x)", ret);
 
@@ -251,6 +265,8 @@ cleanup:
 }
 
 void oai_init_audio_capture(void) {
+
+#if 0
   esp_gmf_setup_periph_i2c(0);
 
   esp_gmf_setup_periph_aud_info audio_play_config = {
@@ -271,7 +287,36 @@ void oai_init_audio_capture(void) {
                              &oai_plr_handle, &oai_rec_handle);
   assert(oai_plr_handle && oai_rec_handle);
 
-  esp_codec_dev_set_out_vol(oai_plr_handle, 60.0);
+    esp_codec_dev_set_out_vol(oai_plr_handle, 60.0);
+#else
+    /* Initialize speaker */
+    oai_plr_handle = bsp_audio_codec_speaker_init();
+    assert(oai_plr_handle);
+    /* Speaker output volume */
+    esp_codec_dev_set_out_vol(oai_plr_handle, 60);
+
+    /* Initialize microphone */
+    oai_rec_handle = bsp_audio_codec_microphone_init();
+    assert(oai_rec_handle);
+    /* Microphone input gain */
+    esp_codec_dev_set_in_gain(oai_rec_handle, 50.0);
+
+    esp_codec_dev_sample_info_t fs1 = {
+        .bits_per_sample = 32,
+        .channel = 1,
+        .sample_rate = SAMPLE_RATE,
+        .mclk_multiple = I2S_MCLK_MULTIPLE_384,
+    };
+    esp_codec_dev_open(oai_rec_handle, &fs1);
+
+    esp_codec_dev_sample_info_t fs = {
+        .bits_per_sample = 16,
+        .channel = 2,
+        .sample_rate = SAMPLE_RATE,
+        .mclk_multiple = I2S_MCLK_MULTIPLE_384,
+    };
+    esp_codec_dev_open(oai_plr_handle, &fs);
+#endif
 
     afe_config_t afe_cfg = AFE_CONFIG_DEFAULT();
     afe_cfg.wakenet_init = false;
@@ -342,13 +387,10 @@ void oai_init_audio_encoder(void) {
                        "esp_gmf_pool_init failed (0x%x)", err);
 
   pool_register_audio_codecs(pool_handle);
-//   pool_register_audio_effects(pool_handle);
-  pool_register_io(pool_handle);
   pool_register_codec_dev_io(pool_handle, oai_plr_handle, oai_rec_handle);
 
     esp_gmf_element_handle_t picker_handle = NULL;
     ch_picker_cfg_t chp_cfg = {
-        // .ch_choice = "1, 3, 0",
         .ch_choice = "1, 0",
     };
     esp_gmf_ch_picker_init(&chp_cfg, &picker_handle);

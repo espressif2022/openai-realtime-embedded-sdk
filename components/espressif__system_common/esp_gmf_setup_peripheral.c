@@ -60,6 +60,8 @@ const audio_codec_data_if_t *out_data_if  = NULL;
 const audio_codec_ctrl_if_t *out_ctrl_if  = NULL;
 const audio_codec_if_t      *out_codec_if = NULL;
 
+const audio_codec_data_if_t *i2s_data_if  = NULL;
+
 const audio_codec_gpio_if_t *gpio_if = NULL;
 #endif /* USE_ESP_GMF_ESP_CODEC_DEV_IO */
 
@@ -80,24 +82,10 @@ static EventGroupHandle_t s_wifi_event_group;
 static int                s_retry_num = 0;
 i2c_master_bus_handle_t   i2c_handle  = NULL;
 
-#ifdef USE_ESP_GMF_ESP_CODEC_DEV_IO
+// #ifdef USE_ESP_GMF_ESP_CODEC_DEV_IO
+#if 1
 static esp_err_t setup_periph_i2s_tx_init(esp_gmf_setup_periph_aud_info *aud_info)
 {
-#if defined CONFIG_IDF_TARGET_ESP32C3
-    i2s_pdm_tx_config_t pdm_tx_cfg = {
-        .clk_cfg = I2S_PDM_TX_CLK_DEFAULT_CONFIG(aud_info->sample_rate),
-        /* The data bit-width of PDM mode is fixed to 16 */
-        .slot_cfg = I2S_PDM_TX_SLOT_DEFAULT_CONFIG(aud_info->bits_per_sample, aud_info->channel),
-        .gpio_cfg = {
-            .clk = ESP_GMF_I2S_DAC_BCLK_IO_NUM,
-            .dout = ESP_GMF_I2S_DAC_DO_IO_NUM,
-            .invert_flags = {
-                .clk_inv = false,
-            },
-        },
-    };
-    return i2s_channel_init_pdm_tx_mode(tx_handle, &pdm_tx_cfg);
-#else
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(aud_info->sample_rate),
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(aud_info->bits_per_sample, aud_info->channel),
@@ -110,7 +98,6 @@ static esp_err_t setup_periph_i2s_tx_init(esp_gmf_setup_periph_aud_info *aud_inf
         },
     };
     return i2s_channel_init_std_mode(tx_handle, &std_cfg);
-#endif /* defined CONFIG_IDF_TARGET_ESP32C3 */
 }
 
 static esp_err_t setup_periph_i2s_rx_init(esp_gmf_setup_periph_aud_info *aud_info)
@@ -148,8 +135,10 @@ static esp_err_t setup_periph_create_i2s(i2s_create_mode_t mode, esp_gmf_setup_p
     } else {
         ret = i2s_new_channel(&chan_cfg, &tx_handle, &rx_handle);
         ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to new I2S tx and rx handle");
+
         ret = setup_periph_i2s_tx_init(aud_info);
         ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to initialize I2S tx");
+        
         ret = setup_periph_i2s_rx_init(aud_info);
         ESP_GMF_RET_ON_NOT_OK(TAG, ret, {return ret;}, "Failed to initialize I2S rx");
     }
@@ -234,7 +223,8 @@ static esp_codec_dev_handle_t setup_periph_create_codec_dev(esp_codec_dev_type_t
     if (dev_type == ESP_CODEC_DEV_TYPE_OUT) {
         // New output codec device
         dev_cfg.codec_if = out_codec_if;
-        dev_cfg.data_if = out_data_if;
+        // dev_cfg.data_if = out_data_if;
+        dev_cfg.data_if = i2s_data_if;
         dev_cfg.dev_type = ESP_CODEC_DEV_TYPE_OUT;
         codec_dev = esp_codec_dev_new(&dev_cfg);
         esp_codec_dev_set_out_vol(codec_dev, 60.0);
@@ -242,7 +232,8 @@ static esp_codec_dev_handle_t setup_periph_create_codec_dev(esp_codec_dev_type_t
     } else {
         // New input codec device
         dev_cfg.codec_if = in_codec_if;
-        dev_cfg.data_if = in_data_if;
+        // dev_cfg.data_if = in_data_if;
+        dev_cfg.data_if = i2s_data_if;
         dev_cfg.dev_type = ESP_CODEC_DEV_TYPE_IN;
         codec_dev = esp_codec_dev_new(&dev_cfg);
         esp_codec_dev_set_in_gain(codec_dev, 30.0);
@@ -255,6 +246,19 @@ static esp_codec_dev_handle_t setup_periph_create_codec_dev(esp_codec_dev_type_t
         esp_codec_dev_open(codec_dev, &fs);
     }
     return codec_dev;
+}
+
+
+static void setup_periph_play_record_codec(
+    esp_gmf_setup_periph_aud_info *play_info, 
+    esp_gmf_setup_periph_aud_info *record_info, 
+    void **play_dev, void **record_dev)
+{
+    i2s_data_if = setup_periph_new_i2s_data(tx_handle, rx_handle);
+    setup_periph_new_play_codec();
+    setup_periph_new_record_codec();
+    *play_dev = setup_periph_create_codec_dev(ESP_CODEC_DEV_TYPE_OUT, play_info);
+    *record_dev = setup_periph_create_codec_dev(ESP_CODEC_DEV_TYPE_IN, record_info);
 }
 
 static void setup_periph_play_codec(esp_gmf_setup_periph_aud_info *aud_info, void **play_dev)
@@ -483,26 +487,31 @@ void esp_gmf_teardown_periph_i2c(int port)
     }
 }
 
-#ifdef USE_ESP_GMF_ESP_CODEC_DEV_IO
+// #ifdef USE_ESP_GMF_ESP_CODEC_DEV_IO
+#if 1
 esp_gmf_err_t esp_gmf_setup_periph_codec(esp_gmf_setup_periph_aud_info *play_info, esp_gmf_setup_periph_aud_info *rec_info,
                                          void **play_dev, void **record_dev)
 {
     if ((play_dev != NULL) && (record_dev != NULL)) {
         if (play_info->port_num == rec_info->port_num) {
             // ESP_GMF_RET_ON_NOT_OK(TAG, setup_periph_create_i2s(I2S_CREATE_MODE_TX_AND_RX, play_info),
-                                //   {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S tx and rx");
+            //                       {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S tx and rx");
+                                  
             ESP_GMF_RET_ON_NOT_OK(TAG, setup_periph_create_i2s(I2S_CREATE_MODE_TX_ONLY, play_info),
                                   {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S tx");
+            
             ESP_GMF_RET_ON_NOT_OK(TAG, setup_periph_create_i2s(I2S_CREATE_MODE_RX_ONLY, rec_info),
                                   {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S rx");
+
+            setup_periph_play_record_codec(play_info, rec_info, play_dev, record_dev);
         } else {
             ESP_GMF_RET_ON_NOT_OK(TAG, setup_periph_create_i2s(I2S_CREATE_MODE_TX_ONLY, play_info),
                                   {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S tx");
             ESP_GMF_RET_ON_NOT_OK(TAG, setup_periph_create_i2s(I2S_CREATE_MODE_RX_ONLY, rec_info),
                                   {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S rx");
+            setup_periph_play_codec(play_info, play_dev);
+            setup_periph_record_codec(rec_info, record_dev);
         }
-        setup_periph_play_codec(play_info, play_dev);
-        setup_periph_record_codec(rec_info, record_dev);
     } else if (play_dev != NULL) {
         ESP_GMF_RET_ON_NOT_OK(TAG, setup_periph_create_i2s(I2S_CREATE_MODE_TX_ONLY, play_info),
                               {return ESP_GMF_ERR_FAIL;}, "Failed to create I2S tx");

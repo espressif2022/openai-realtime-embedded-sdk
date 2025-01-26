@@ -12,6 +12,11 @@ dependencies:
     rules:
     - if: "${BUILD_BOARD} != esp32s3_korvo_2"
 
+  espressif/esp32_s3_korvo_2:
+    version: "^3.0.0"
+    rules:
+    - if: "${BUILD_BOARD} == esp32s3_korvo_2"
+
   espressif/gmf_core:
     path: ./gmf_core
     git: https://github.com/espressif2022/esp-gmf.git
