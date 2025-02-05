@@ -161,18 +161,18 @@ static void setup_periph_new_play_codec()
     gpio_if->setup(ESP_GMF_AMP_IO_NUM, AUDIO_GPIO_DIR_OUT, AUDIO_GPIO_MODE_PULL_DOWN);
     gpio_if->set(ESP_GMF_AMP_IO_NUM, 1);
 #else
-    audio_codec_i2c_cfg_t i2c_ctrl_cfg = {.addr = ES8311_CODEC_DEFAULT_ADDR, .port = 0, .bus_handle = i2c_handle};
-    out_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_ctrl_cfg);
-    gpio_if = audio_codec_new_gpio();
-    // New output codec interface
-    es8311_codec_cfg_t es8311_cfg = {
-        .codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC,
-        .ctrl_if = out_ctrl_if,
-        .gpio_if = gpio_if,
-        .pa_pin = ESP_GMF_AMP_IO_NUM,
-        .use_mclk = true,
-    };
-    out_codec_if = es8311_codec_new(&es8311_cfg);
+    // audio_codec_i2c_cfg_t i2c_ctrl_cfg = {.addr = ES8311_CODEC_DEFAULT_ADDR, .port = 0, .bus_handle = i2c_handle};
+    // out_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_ctrl_cfg);
+    // gpio_if = audio_codec_new_gpio();
+    // // New output codec interface
+    // es8311_codec_cfg_t es8311_cfg = {
+    //     .codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC,
+    //     .ctrl_if = out_ctrl_if,
+    //     .gpio_if = gpio_if,
+    //     .pa_pin = ESP_GMF_AMP_IO_NUM,
+    //     .use_mclk = true,
+    // };
+    // out_codec_if = es8311_codec_new(&es8311_cfg);
 #endif /* CONFIG_IDF_TARGET_ESP32C3 */
 }
 
@@ -201,13 +201,13 @@ static void setup_periph_new_record_codec()
     };
     in_codec_if = es7243_codec_new(&es7243_cfg);
 #else
-    audio_codec_i2c_cfg_t i2c_ctrl_cfg = {.addr = ES7210_CODEC_DEFAULT_ADDR, .port = 0, .bus_handle = i2c_handle};
-    in_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_ctrl_cfg);
-    es7210_codec_cfg_t es7210_cfg = {
-        .ctrl_if = in_ctrl_if,
-        .mic_selected = ES7120_SEL_MIC1 | ES7120_SEL_MIC2 | ES7120_SEL_MIC3,
-    };
-    in_codec_if = es7210_codec_new(&es7210_cfg);
+    // audio_codec_i2c_cfg_t i2c_ctrl_cfg = {.addr = ES7210_CODEC_DEFAULT_ADDR, .port = 0, .bus_handle = i2c_handle};
+    // in_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_ctrl_cfg);
+    // es7210_codec_cfg_t es7210_cfg = {
+    //     .ctrl_if = in_ctrl_if,
+    //     .mic_selected = ES7120_SEL_MIC1 | ES7120_SEL_MIC2 | ES7120_SEL_MIC3,
+    // };
+    // in_codec_if = es7210_codec_new(&es7210_cfg);
 #endif /* defined CONFIG_IDF_TARGET_ESP32P4 */
 }
 

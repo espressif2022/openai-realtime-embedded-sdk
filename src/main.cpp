@@ -6,6 +6,7 @@
 
 #ifndef LINUX_BUILD
 #include "nvs_flash.h"
+#include "tcp_server.h"
 
 extern "C" void app_main(void) {
   esp_err_t ret = nvs_flash_init();
@@ -21,6 +22,7 @@ extern "C" void app_main(void) {
   oai_init_audio_capture();
   oai_init_audio_decoder();
   oai_wifi();
+  // tcp_server_wait_for_connection();
   oai_webrtc();
 }
 #else

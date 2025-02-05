@@ -41,6 +41,7 @@
 #include "bsp/esp-bsp.h"
 
 #include "main.h"
+#include "tcp_server.h"
 
 static const char *TAG = "gmf";
 
@@ -102,6 +103,9 @@ void oai_record_write_enc(uint8_t *data, int len) {
   esp_gmf_data_bus_block_t blk = {0};
 
   esp_gmf_fifo_acquire_write(oai_rec_enc_fifo, &blk, len, portMAX_DELAY);
+  tcp_server_send(data, len);
+  ESP_LOGI(TAG, "send, size:%d", len);
+
   memcpy((void *)blk.buf, (void *)data, len);
   blk.valid_size = len;
   if (len == 0) {
@@ -123,8 +127,8 @@ static int oai_encoder_release_write(void *handle,
                                      esp_gmf_data_bus_block_t *blk,
                                      int block_ticks) {
   int ret = 0;
+  ESP_LOGI(TAG, "oai_encoder_release_write, size:%d", blk->valid_size);
   if (blk->valid_size) {
-    ESP_LOGI(TAG, "oai_encoder_release_write, size:%d", blk->valid_size);
     oai_record_write_enc(blk->buf, blk->valid_size);
     ret = blk->valid_size;
   }
@@ -152,9 +156,9 @@ void oai_player_write_dec(uint8_t *data, int len) {
   if (len == 0) {
     blk.is_last = true;
   }
-  if(blk.valid_size != 26){
-    ESP_LOGI(TAG, "oai_player_write_dec, size:%d", blk.valid_size);
-  }
+  // if(blk.valid_size != 26){
+  //   ESP_LOGI(TAG, "oai_player_write_dec, size:%d", blk.valid_size);
+  // }
   esp_gmf_fifo_release_write(oai_plr_dec_fifo, &blk, portMAX_DELAY);
 }
 
@@ -170,6 +174,34 @@ static esp_gmf_err_t oai_record_pipeline_create(
   esp_gmf_pipeline_handle_t pipe = NULL;
 
 #if 1
+  const char *name[] = { "ch_picker", "afe_proc", "encoder"};
+
+  ret = esp_gmf_pool_new_pipeline(pool, "codec_dev_rx",name, sizeof(name) / sizeof(char *), NULL, &pipe);
+  ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
+                       "esp_gmf_pool_new_pipeline failed(0x%x)", ret);
+
+  esp_gmf_port_handle_t out_port;
+  out_port = (esp_gmf_port_handle_t)NEW_ESP_GMF_PORT_OUT_BYTE(
+      (void *)oai_encoder_acquire_write, (void *)oai_encoder_release_write,
+      NULL, &out_port, 0, ESP_GMF_MAX_DELAY);
+  ret = esp_gmf_pipeline_reg_el_port(pipe, "encoder", ESP_GMF_IO_DIR_WRITER, out_port);
+  ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
+                       "esp_gmf_pipeline_reg_el_port failed(0x%x)", ret);
+
+  esp_gmf_info_sound_t info2 = {
+      .sample_rates = SAMPLE_RATE,
+      .channels = 4,
+      .bits = 16,
+  };
+  ret = esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info2,
+                                     sizeof(info2));
+  ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
+                       "esp_gmf_pipeline_report_info failed(0x%x)", ret);
+
+  esp_gmf_pipeline_set_out_uri(pipe, "/sdcard/gmf.pcm");
+                       
+#else
+
     const char *name[] = { "ch_picker", "afe_proc", "encoder"};
 
   ret = esp_gmf_pool_new_pipeline(pool, "codec_dev_rx",name, sizeof(name) / sizeof(char *), NULL, &pipe);
@@ -183,16 +215,6 @@ static esp_gmf_err_t oai_record_pipeline_create(
   ret = esp_gmf_pipeline_reg_el_port(pipe, "encoder", ESP_GMF_IO_DIR_WRITER, out_port);
   ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
                        "esp_gmf_pipeline_reg_el_port failed(0x%x)", ret);
-                       
-#else
-    sdmmc_card_t *card = NULL;
-    esp_gmf_setup_periph_sdmmc((void **)&card);
-
-    const char *name[] = { "ch_picker", "afe_proc"};
-
-  ret = esp_gmf_pool_new_pipeline(pool, "codec_dev_rx",name, sizeof(name) / sizeof(char *), "file", &pipe);
-  ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
-                       "esp_gmf_pool_new_pipeline failed(0x%x)", ret);
 
     esp_gmf_info_sound_t info = {
         .sample_rates = 16000,
@@ -206,6 +228,7 @@ static esp_gmf_err_t oai_record_pipeline_create(
   esp_gmf_task_cfg_t cfg_rec = DEFAULT_ESP_GMF_TASK_CONFIG();
   cfg_rec.thread.stack = 30 * 1024;
   cfg_rec.thread.core = 1;
+  cfg_rec.name = "rec";
   esp_gmf_task_handle_t work_rec_task = NULL;
 
   ret = esp_gmf_task_init(&cfg_rec, &work_rec_task);
@@ -217,12 +240,12 @@ static esp_gmf_err_t oai_record_pipeline_create(
   esp_gmf_pipeline_set_event(pipe, oai_record_event_callback, NULL);
 
   esp_gmf_element_handle_t enc_handle = NULL;
-  esp_gmf_pipeline_set_out_uri(pipe, "/sdcard/openAI.opus");
+  const char *file_name = "/sdcard/openAI.pcm";
+  esp_gmf_pipeline_set_out_uri(pipe, file_name);
   esp_gmf_pipeline_get_el_by_name(pipe, "encoder", &enc_handle);
 
   esp_audio_type_t audio_type = ESP_AUDIO_TYPE_UNSUPPORT;
-  esp_gmf_audio_helper_get_audio_type_by_uri("/sdcard/openAI.opus",
-                                             &audio_type);
+  esp_gmf_audio_helper_get_audio_type_by_uri(file_name, &audio_type);
 
   esp_gmf_info_sound_t info1 = {
       .sample_rates = SAMPLE_RATE,
@@ -232,21 +255,27 @@ static esp_gmf_err_t oai_record_pipeline_create(
   esp_gmf_audio_helper_reconfig_enc_by_type(
       audio_type, &info1, (esp_audio_enc_config_t *)OBJ_GET_CFG(enc_handle));
 
-  esp_audio_enc_config_t *cfg =
-      (esp_audio_enc_config_t *)OBJ_GET_CFG(enc_handle);
-  esp_opus_enc_config_t *opus_enc_cfg = (esp_opus_enc_config_t *)cfg->cfg;
-  opus_enc_cfg->bitrate = 10000 * 3;
-  opus_enc_cfg->enable_vbr = true;
+  // esp_audio_enc_config_t *cfg =
+  //     (esp_audio_enc_config_t *)OBJ_GET_CFG(enc_handle);
+  // esp_opus_enc_config_t *opus_enc_cfg = (esp_opus_enc_config_t *)cfg->cfg;
+  // opus_enc_cfg->bitrate = 10000 * 3;
+  // opus_enc_cfg->enable_vbr = true;
 
-  esp_gmf_info_sound_t info2 = {
-      .sample_rates = SAMPLE_RATE,
-      .channels = 4,
-      .bits = 16,
-  };
-  ret = esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info2,
-                                     sizeof(info2));
-  ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
-                       "esp_gmf_pipeline_report_info failed(0x%x)", ret);
+  // esp_gmf_info_sound_t info2 = {
+  //     .sample_rates = SAMPLE_RATE,
+  //     .channels = 4,
+  //     .bits = 16,
+  // };
+  // ret = esp_gmf_pipeline_report_info(pipe, ESP_GMF_INFO_SOUND, &info2,
+  //                                    sizeof(info2));
+  // ESP_GMF_RET_ON_ERROR(TAG, ret, goto cleanup,
+  //                      "esp_gmf_pipeline_report_info failed(0x%x)", ret);
+
+    ESP_LOGI(TAG, "Start pipeline");
+    esp_gmf_pipeline_run(pipe);
+    ESP_LOGI(TAG, "Start pipeline done");
+
+    vTaskDelay(100000 / portTICK_PERIOD_MS);
 
   *pipe_rec = pipe;
   return ret;
@@ -287,19 +316,21 @@ void oai_init_audio_capture(void) {
                              &oai_plr_handle, &oai_rec_handle);
   assert(oai_plr_handle && oai_rec_handle);
 
-    esp_codec_dev_set_out_vol(oai_plr_handle, 60.0);
+  esp_codec_dev_set_out_vol(oai_plr_handle, 60.0);
 #else
     /* Initialize speaker */
     oai_plr_handle = bsp_audio_codec_speaker_init();
     assert(oai_plr_handle);
     /* Speaker output volume */
-    esp_codec_dev_set_out_vol(oai_plr_handle, 60);
+    esp_codec_dev_set_out_vol(oai_plr_handle, 75);
+    ESP_LOGI(TAG, "Initialize speaker:%p", oai_plr_handle);
 
     /* Initialize microphone */
     oai_rec_handle = bsp_audio_codec_microphone_init();
     assert(oai_rec_handle);
     /* Microphone input gain */
     esp_codec_dev_set_in_gain(oai_rec_handle, 50.0);
+    ESP_LOGI(TAG, "Initialize microphone:%p", oai_rec_handle);
 
     esp_codec_dev_sample_info_t fs1 = {
         .bits_per_sample = 32,
@@ -387,6 +418,7 @@ void oai_init_audio_encoder(void) {
                        "esp_gmf_pool_init failed (0x%x)", err);
 
   pool_register_audio_codecs(pool_handle);
+  ESP_LOGI(TAG, "Register audio codecs, play:%p, record:%p", oai_plr_handle, oai_rec_handle);
   pool_register_codec_dev_io(pool_handle, oai_plr_handle, oai_rec_handle);
 
     esp_gmf_element_handle_t picker_handle = NULL;
@@ -438,8 +470,12 @@ cleanup:
 }
 
 void oai_send_audio(PeerConnection *peer_connection) {
+
+
   int encoded_size =
       oai_record_read_enc((uint8_t *)oai_encoder_input_buffer, BUFFER_SAMPLES);
+  
+  return;
   peer_connection_send_audio(
       peer_connection, (const uint8_t *)oai_encoder_input_buffer, encoded_size);
 }

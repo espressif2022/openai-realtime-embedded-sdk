@@ -6,7 +6,7 @@ if(IDF_TARGET STREQUAL linux)
 		REQUIRES peer esp_http_client)
 else()
 	idf_component_register(
-		SRCS ${COMMON_SRC} "wifi.cpp" "media.cpp" "media_gmf.c" "message.c"
+		SRCS ${COMMON_SRC} "wifi.cpp" "media.cpp" "media_gmf.c" "message.c" "tcp_server.c"
 		REQUIRES driver esp_wifi nvs_flash peer esp_psram esp_timer esp_http_client ai_audio espressif__system_common)
 endif()
 
