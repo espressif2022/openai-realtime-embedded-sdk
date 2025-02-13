@@ -8,7 +8,13 @@ dependencies:
   78/esp-opus:
     version: "^1.0.4"
     rules:
-    - if: ${BUILD_BOARD} not in ["esp32s3_korvo_2", "esp-box"]
+    - if: ${BUILD_BOARD} not in ["esp32s3_korvo_2", "esp-box", "esp-sparkbot"]
+
+
+  espressif2022/esp_sparkbot:
+    version: "^1.0.1"
+    rules:
+    - if: "${BUILD_BOARD} == esp-sparkbot"
 
   espressif/esp32_s3_korvo_2:
     version: "^3.0.0"
@@ -20,37 +26,27 @@ dependencies:
     rules:
     - if: "${BUILD_BOARD} == esp-box"
 
-  espressif/gmf_core:
-    path: ./gmf_core
-    git: https://github.com/espressif/esp-gmf.git
-    version: "main"
+  espressif/esp_gmf_core:
+    version: "^0.5.0"
     rules:
-    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box"]
+    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box", "esp-sparkbot"]
 
-  espressif/gmf_io:
-    path: ./gmf_elements/gmf_io
-    git: https://github.com/espressif/esp-gmf.git
-    version: "main"
+  espressif/esp_gmf_io:
+    version: "^0.5.1"
     rules:
-    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box"]
+    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box", "esp-sparkbot"]
 
-  espressif/gmf_misc:
-    path: ./gmf_elements/gmf_misc
-    git: https://github.com/espressif/esp-gmf.git
-    version: "main"
+  espressif/esp_gmf_misc:
+    version: "^0.5.1"
     rules:
-    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box"]
+    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box", "esp-sparkbot"]
 
-  espressif/gmf_audio:
-    path: ./gmf_elements/gmf_audio
-    git: https://github.com/espressif/esp-gmf.git
-    version: "main"
+  espressif/esp_gmf_audio:
+    version: "^0.5.1"
     rules:
-    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box"]
+    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box", "esp-sparkbot"]
 
   espressif/esp_audio_simple_player:
-    path: ./examples/esp_audio_simple_player
-    git: https://github.com/espressif/esp-gmf.git
-    version: "main"
+    version: "^0.9.1"
     rules:
-    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box"]
+    - if: ${BUILD_BOARD} in ["esp32s3_korvo_2", "esp-box", "esp-sparkbot"]

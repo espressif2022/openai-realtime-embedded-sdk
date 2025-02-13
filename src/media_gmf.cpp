@@ -256,7 +256,7 @@ void oai_init_audio_capture(void) {
   oai_plr_handle = bsp_audio_codec_speaker_init();
   assert(oai_plr_handle);
   /* Speaker output volume */
-  esp_codec_dev_set_out_vol(oai_plr_handle, 60);
+  esp_codec_dev_set_out_vol(oai_plr_handle, 80);
   ESP_LOGI(TAG, "Initialize speaker:%p", oai_plr_handle);
 
   /* Initialize microphone */
@@ -311,6 +311,7 @@ void oai_init_audio_decoder(void) {
       break;
     }
 
+    ESP_LOGI(TAG, "esp_audio_simple_player_set_event");
     err = esp_audio_simple_player_set_event(player_handle,
                                             oai_player_event_callback, NULL);
     if (err != ESP_GMF_ERR_OK) {
@@ -318,6 +319,7 @@ void oai_init_audio_decoder(void) {
       break;
     }
 
+    ESP_LOGI(TAG, "esp_audio_simple_player_run");
     esp_asp_music_info_t music_info;
     music_info.sample_rate = SAMPLE_RATE;
     music_info.channels = 2;
@@ -343,6 +345,7 @@ void oai_init_audio_decoder(void) {
 }
 
 void oai_audio_decode(uint8_t *data, size_t size) {
+  // ESP_LOGI(TAG, "oai_audio_decode:%d", size);
   oai_player_write_dec(data, size);
 }
 
@@ -403,6 +406,7 @@ void oai_init_audio_encoder(void) {
 void oai_send_audio(PeerConnection *peer_connection) {
   int encoded_size =
       oai_record_read_enc((uint8_t *)oai_encoder_input_buffer, BUFFER_SAMPLES);
+      ESP_LOGI(TAG, "oai_send_audio:%d", encoded_size);
   peer_connection_send_audio(
       peer_connection, (const uint8_t *)oai_encoder_input_buffer, encoded_size);
 }
